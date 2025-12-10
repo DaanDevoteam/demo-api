@@ -1,52 +1,84 @@
-from flask import Flask, jsonify, request
-import datetime
-import os
+from fastapi import FastAPI, HTTPException, Request
+import logging
 
-app = Flask(__name__)
+# --- LOGGING SETUP ---
+logging.basicConfig(
+    filename="api.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
-# Store some demo data
-tasks = [
-    {"id": 1, "title": "Learn Azure", "completed": False},
-    {"id": 2, "title": "Build API", "completed": False}
-]
+app = FastAPI()
 
-@app.route('/')
-def home():
-    return jsonify({
-        "message": "Demo API is running",
-        "version": "1.0.0",
-        "timestamp": datetime.datetime.utcnow().isoformat()
-    })
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logging.info(f"Incoming request: {request.method} {request.url}")
+    response = await call_next(request)
+    logging.info(f"Response status: {response.status_code}")
+    return response
 
-@app.route('/health')
-def health():
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.datetime.utcnow().isoformat()
-    })
+@app.get("/ping")
+async def ping():
+    return {"message": "pong"}
 
-@app.route('/api/tasks', methods=['GET'])
-def get_tasks():
-    return jsonify({"tasks": tasks})
+@app.get("/process")
+async def process(code: str):
+    valid_code = "SECRET123"
 
-@app.route('/api/tasks', methods=['POST'])
-def create_task():
-    data = request.get_json()
-    new_task = {
-        "id": len(tasks) + 1,
-        "title": data.get('title', 'Untitled'),
-        "completed": False
-    }
-    tasks.append(new_task)
-    return jsonify(new_task), 201
+    if code != valid_code:
+        logging.error(f"Invalid code attempted: {code}")
+        raise HTTPException(status_code=400, detail="Invalid code parameter")
 
-@app.route('/api/tasks/<int:task_id>', methods=['GET'])
-def get_task(task_id):
-    task = next((t for t in tasks if t['id'] == task_id), None)
-    if task:
-        return jsonify(task)
-    return jsonify({"error": "Task not found"}), 404
+    logging.info("Code validated successfully")
+    return {"status": "success", "detail": "Processed successfully"}
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+# --- STRICT PARAMETER ENDPOINT 2 ---
+@app.get("/validate")
+async def validate(token: str):
+    expected = "TOKEN-999"
+
+    if token != expected:
+        logging.error(f"Invalid token attempted: {token}")
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    logging.info("Token validated successfully")
+    return {"status": "success", "detail": "Token validated"}
+
+
+# --- STRICT PARAMETER ENDPOINT 3 ---
+@app.get("/compute")
+async def compute(secret: str):
+    expected = "COMPUTE-777"
+
+    if secret != expected:
+        logging.error(f"Invalid compute secret attempted: {secret}")
+        raise HTTPException(status_code=403, detail="Invalid compute secret")
+
+    logging.info("Compute secret validated successfully")
+    return {"status": "success", "detail": "Computation executed"}
+
+
+# --- STRICT PARAMETER ENDPOINT 4 ---
+@app.get("/authorize")
+async def authorize(key: str):
+    expected = "AUTH-555"
+
+    if key != expected:
+        logging.error(f"Invalid authorization key attempted: {key}")
+        raise HTTPException(status_code=401, detail="Authorization failed")
+
+    logging.info("Authorization key validated successfully")
+    return {"status": "success", "detail": "Access authorized"}
+
+
+# --- STRICT PARAMETER ENDPOINT 5 ---
+@app.get("/simulate")
+async def simulate(flag: str):
+    expected = "SIM-TEST"
+
+    if flag != expected:
+        logging.error(f"Simulation failed for flag: {flag}")
+        raise HTTPException(status_code=400, detail="Simulation flag invalid")
+
+    logging.info("Simulation flag validated successfully")
+    return {"status": "success", "detail": "Simulation executed"}
