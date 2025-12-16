@@ -51,3 +51,16 @@ output "action_group_name" {
   description = "Name of the action group for Google Chat"
   value       = azurerm_monitor_action_group.google_chat.name
 }
+
+# Output Logic App name
+output "logic_app_name" {
+  description = "Name of the Logic App for alert transformation"
+  value       = azurerm_logic_app_workflow.alert_transformer.name
+}
+
+# Output Logic App callback URL
+output "logic_app_callback_url" {
+  description = "Callback URL for the Logic App HTTP trigger"
+  value       = azurerm_logic_app_trigger_http_request.alert_trigger.callback_url
+  sensitive   = true
+}

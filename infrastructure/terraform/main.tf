@@ -78,16 +78,93 @@ resource "azurerm_linux_web_app" "main" {
   }
 }
 
-# Action Group - Sends alerts to Google Chat via webhook
+# Logic App - Transforms Azure Alert payload to Google Chat format
+resource "azurerm_logic_app_workflow" "alert_transformer" {
+  name                = "alert-to-gchat-transformer"
+  location            = var.location
+  resource_group_name = data.azurerm_resource_group.main.name
+  
+  tags = var.tags
+}
+
+# HTTP Trigger for the Logic App
+resource "azurerm_logic_app_trigger_http_request" "alert_trigger" {
+  name         = "When_Azure_Alert_fires"
+  logic_app_id = azurerm_logic_app_workflow.alert_transformer.id
+  
+  schema = jsonencode({
+    type = "object"
+    properties = {
+      schemaId = { type = "string" }
+      data = {
+        type = "object"
+        properties = {
+          essentials = {
+            type = "object"
+            properties = {
+              alertRule       = { type = "string" }
+              severity        = { type = "string" }
+              monitorCondition = { type = "string" }
+              firedDateTime   = { type = "string" }
+              description     = { type = "string" }
+            }
+          }
+        }
+      }
+    }
+  })
+}
+
+# Compose the Google Chat message
+resource "azurerm_logic_app_action_custom" "compose_message" {
+  name         = "Compose_Google_Chat_Message"
+  logic_app_id = azurerm_logic_app_workflow.alert_transformer.id
+  
+  body = <<-JSON
+    {
+      "type": "Compose",
+      "inputs": {
+        "text": "@{concat('@Sir Fix-a-lot Alert: ', triggerBody()?['data']?['essentials']?['alertRule'], ' fired at ', convertTimeZone(triggerBody()?['data']?['essentials']?['firedDateTime'], 'UTC', 'W. Europe Standard Time', 'HH:mm'))}"
+      },
+      "runAfter": {}
+    }
+  JSON
+}
+
+# HTTP POST to Google Chat webhook
+resource "azurerm_logic_app_action_custom" "post_to_gchat" {
+  name         = "Post_to_Google_Chat"
+  logic_app_id = azurerm_logic_app_workflow.alert_transformer.id
+  
+  body = <<-JSON
+    {
+      "type": "Http",
+      "inputs": {
+        "method": "POST",
+        "uri": "${var.google_chat_webhook_url}",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "@outputs('Compose_Google_Chat_Message')"
+      },
+      "runAfter": {
+        "Compose_Google_Chat_Message": ["Succeeded"]
+      }
+    }
+  JSON
+}
+
+# Action Group - Sends alerts to Logic App for transformation
 resource "azurerm_monitor_action_group" "google_chat" {
   name                = "google-chat-incidents"
   resource_group_name = data.azurerm_resource_group.main.name
   short_name          = "gchat-alert"
   
-  webhook_receiver {
-    name                    = "google-chat-webhook"
-    service_uri             = var.google_chat_webhook_url
-    use_common_alert_schema = false
+  logic_app_receiver {
+    name                    = "alert-transformer"
+    resource_id             = azurerm_logic_app_workflow.alert_transformer.id
+    callback_url            = azurerm_logic_app_trigger_http_request.alert_trigger.callback_url
+    use_common_alert_schema = true
   }
   
   tags = var.tags
