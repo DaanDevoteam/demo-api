@@ -3,6 +3,19 @@ data "azurerm_resource_group" "main" {
   name = var.resource_group_name
 }
 
+# Application Insights for structured logging and monitoring
+resource "azurerm_application_insights" "main" {
+  name                = "${var.app_name}-insights"
+  location            = var.location
+  resource_group_name = data.azurerm_resource_group.main.name
+  application_type    = "web"
+  
+  # Free tier: 5GB/month included
+  daily_data_cap_in_gb = 1
+  
+  tags = var.tags
+}
+
 # App Service Plan (Linux F1 tier - Free)
 resource "azurerm_service_plan" "main" {
   name                = var.app_service_plan_name
@@ -29,12 +42,14 @@ resource "azurerm_linux_web_app" "main" {
       python_version = "3.11"
     }
     
-    app_command_line = "gunicorn --bind=0.0.0.0:8000 app:app"
+    app_command_line = "uvicorn app:app --host 0.0.0.0 --port 8000"
   }
   
   app_settings = {
-    "SCM_DO_BUILD_DURING_DEPLOYMENT" = "true"
-    "WEBSITES_PORT"                  = "8000"
+    "SCM_DO_BUILD_DURING_DEPLOYMENT"         = "true"
+    "WEBSITES_PORT"                          = "8000"
+    "APPLICATIONINSIGHTS_CONNECTION_STRING"  = azurerm_application_insights.main.connection_string
+    "ApplicationInsightsAgent_EXTENSION_VERSION" = "~3"
   }
   
   logs {

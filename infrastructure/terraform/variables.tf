@@ -40,7 +40,7 @@ variable "tags" {
   default = {
     Project = "demo-api"
     Purpose = "incident-agent-testing"
-    Pillar  = "S Platform"
+    Pillar  = "I Tech"
     Role    = "Futures"
     Usage   = "Training / Certification related activities"
   }
