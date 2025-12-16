@@ -45,3 +45,11 @@ variable "tags" {
     Usage   = "Training / Certification related activities"
   }
 }
+
+# Google Chat Incoming Webhook URL for alerts
+variable "google_chat_webhook_url" {
+  description = "Google Chat incoming webhook URL for incident alerts"
+  type        = string
+  default     = "https://chat.googleapis.com/v1/spaces/AAQAlHOhXCA/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=gzlXWzzpTy3qN2Q8NJl00mpj5rN7aZkYTVWssAjGdis"
+  sensitive   = true
+}

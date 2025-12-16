@@ -14,6 +14,11 @@ resource "azurerm_application_insights" "main" {
   daily_data_cap_in_gb = 1
   
   tags = var.tags
+  
+  # Ignore workspace_id changes (can't be removed once set)
+  lifecycle {
+    ignore_changes = [workspace_id]
+  }
 }
 
 # App Service Plan (Linux F1 tier - Free)
@@ -63,6 +68,61 @@ resource "azurerm_linux_web_app" "main" {
         retention_in_mb   = 35
       }
     }
+  }
+  
+  tags = var.tags
+  
+  # Ignore hidden tags added by Azure
+  lifecycle {
+    ignore_changes = [tags["hidden-link: /app-insights-resource-id"]]
+  }
+}
+
+# Action Group - Sends alerts to Google Chat via webhook
+resource "azurerm_monitor_action_group" "google_chat" {
+  name                = "google-chat-incidents"
+  resource_group_name = data.azurerm_resource_group.main.name
+  short_name          = "gchat-alert"
+  
+  webhook_receiver {
+    name                    = "google-chat-webhook"
+    service_uri             = var.google_chat_webhook_url
+    use_common_alert_schema = false
+  }
+  
+  tags = var.tags
+}
+
+# Alert Rule - Triggers when error traces >= 2 in 5 minutes
+resource "azurerm_monitor_scheduled_query_rules_alert_v2" "high_error_rate" {
+  name                = "high-error-rate-alert"
+  resource_group_name = data.azurerm_resource_group.main.name
+  location            = var.location
+  description         = "Alert when error count exceeds threshold"
+  severity            = 2
+  
+  evaluation_frequency = "PT1M"
+  window_duration      = "PT5M"
+  scopes               = [azurerm_application_insights.main.id]
+  
+  criteria {
+    query = <<-QUERY
+      traces
+      | where severityLevel >= 3
+    QUERY
+    
+    time_aggregation_method = "Count"
+    operator                = "GreaterThanOrEqual"
+    threshold               = 2
+    
+    failing_periods {
+      minimum_failing_periods_to_trigger_alert = 1
+      number_of_evaluation_periods             = 1
+    }
+  }
+  
+  action {
+    action_groups = [azurerm_monitor_action_group.google_chat.id]
   }
   
   tags = var.tags

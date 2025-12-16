@@ -39,3 +39,15 @@ output "application_insights_instrumentation_key" {
   value       = azurerm_application_insights.main.instrumentation_key
   sensitive   = true
 }
+
+# Output Alert Rule name
+output "alert_rule_name" {
+  description = "Name of the log alert rule"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.high_error_rate.name
+}
+
+# Output Action Group name
+output "action_group_name" {
+  description = "Name of the action group for Google Chat"
+  value       = azurerm_monitor_action_group.google_chat.name
+}
